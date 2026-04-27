@@ -5,7 +5,7 @@
 先确认本地代理入口能用：
 
 ```zsh
-HTTP_PROXY_URL="http://127.0.0.1:YOUR_LOCAL_HTTP_PORT" scripts/check-proxy.sh
+scripts/check-proxy.sh
 ```
 
 如果这里失败，问题在本地代理入口，不在 Codex。
@@ -20,6 +20,12 @@ HTTP_PROXY_URL="http://127.0.0.1:YOUR_LOCAL_HTTP_PORT" scripts/check-proxy.sh
 scripts/launch-codex-with-proxy.sh
 macOS 快捷指令
 Automator App
+```
+
+如果还是看不到连接，强制使用 Electron 代理参数：
+
+```zsh
+USE_ELECTRON_PROXY_ARGS=1 QUIT_EXISTING=1 scripts/launch-codex-with-proxy.sh
 ```
 
 ## 规则没有命中代理组
@@ -74,4 +80,18 @@ oaiusercontent.com
 statsig.com
 featuregates.org
 ```
+
+也可以看日志：
+
+```zsh
+tail -n 100 "$HOME/Library/Logs/codex-proxy-launcher/codex-via-proxy.log"
+```
+
+## 预检脚本发现多个端口怎么办？
+
+不要猜。
+
+打开你的代理客户端设置页，找到 HTTP、mixed 或 SOCKS 本地监听地址，再写进 `.env`。
+
+如果你是 AI agent，停下来问用户。
 
