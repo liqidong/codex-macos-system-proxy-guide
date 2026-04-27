@@ -1,0 +1,18 @@
+# Put these rules in your client's rule enhancement / mixin / override file.
+# Do not edit the remote subscription file directly.
+#
+# Replace YOUR_PROXY_GROUP_NAME with a real proxy group from your config.
+
+prepend:
+  - DOMAIN-SUFFIX,openai.com,YOUR_PROXY_GROUP_NAME
+  - DOMAIN-SUFFIX,chatgpt.com,YOUR_PROXY_GROUP_NAME
+  - DOMAIN-SUFFIX,oaistatic.com,YOUR_PROXY_GROUP_NAME
+  - DOMAIN-SUFFIX,oaiusercontent.com,YOUR_PROXY_GROUP_NAME
+  - DOMAIN-SUFFIX,auth.openai.com,YOUR_PROXY_GROUP_NAME
+  - DOMAIN-SUFFIX,statsig.com,YOUR_PROXY_GROUP_NAME
+  - DOMAIN-SUFFIX,featuregates.org,YOUR_PROXY_GROUP_NAME
+
+append: []
+
+delete: []
+
