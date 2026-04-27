@@ -2,7 +2,16 @@
 
 This runbook is for another model taking over the task.
 
-It is deliberately procedural. Follow it in order.
+The desired setup is:
+
+```text
+macOS system proxy: on
+proxy client rule mode: on
+TUN mode: off
+Codex: opened normally
+```
+
+Do not use per-app proxy injection as the default path.
 
 ## Step 1: Discover local state
 
@@ -15,9 +24,10 @@ scripts/preflight.sh
 Read the output. You are looking for:
 
 ```text
-Codex executable
+Codex app name
+macOS network service
+current system proxy state
 listening local ports
-system proxy status
 candidate proxy config files
 ```
 
@@ -25,20 +35,36 @@ If the script finds more than one plausible proxy port, do not choose randomly. 
 
 ## Step 2: Fill `.env`
 
-Create `.env` from `.env.example`.
+Create `.env` from `.env.example` if this repo needs to set system proxy.
 
 Example shape:
 
 ```zsh
-HTTP_PROXY_URL="http://127.0.0.1:YOUR_LOCAL_HTTP_PORT"
-HTTPS_PROXY_URL="http://127.0.0.1:YOUR_LOCAL_HTTP_PORT"
-ALL_PROXY_URL=""
-APP_EXECUTABLE="/Applications/Codex.app/Contents/MacOS/Codex"
+NETWORK_SERVICE="Wi-Fi"
+PROXY_HOST="127.0.0.1"
+PROXY_PORT="YOUR_LOCAL_PROXY_PORT"
+ENABLE_SOCKS_PROXY="0"
+APP_NAME="Codex"
 ```
 
 Do not commit `.env`.
 
-## Step 3: Add rules safely
+## Step 3: Disable TUN
+
+In the proxy client UI, disable settings named like:
+
+```text
+TUN
+Enhanced mode
+Virtual network adapter
+Transparent proxy
+DNS hijack
+Redirect all traffic
+```
+
+The purpose is to avoid routing the whole system through a virtual network interface.
+
+## Step 4: Add rules safely
 
 Find the user's rule enhancement, mixin, merge, override, or profile enhancement file.
 
@@ -62,50 +88,48 @@ YOUR_PROXY_GROUP_NAME
 
 with the real group name from the user's config.
 
-Do not edit generated runtime config unless the user explicitly asks for a temporary test.
+Do not edit generated runtime config as the permanent solution.
 
-## Step 4: Reload config
+## Step 5: Enable system proxy
 
-The user may need to click reload in their proxy client.
+Preferred path: ask the user to enable system proxy in their proxy client UI.
 
-If the proxy client exposes a known API and the user approves, use it. Otherwise, tell the user exactly what to click.
+Script path:
 
-Do not restart the whole proxy app unless necessary. It can briefly interrupt the user's network.
+```zsh
+scripts/set-system-proxy.sh
+```
 
-## Step 5: Test proxy
+Only run the script after `.env` is filled.
+
+## Step 6: Test system proxy
 
 Run:
 
 ```zsh
-scripts/check-proxy.sh
+scripts/check-system-proxy.sh
 ```
-
-If `.env` exists, the script reads it automatically.
 
 If it fails:
 
 ```text
+HTTPEnable/HTTPSEnable not 1 -> system proxy is not enabled
 Connection refused -> local proxy is not listening or wrong port
 Timeout -> proxy reachable but upstream route may be bad
-HTTP 403/404 -> network path may still be OK, check another TEST_URL
-DNS error -> local proxy or DNS mode may be wrong
+HTTP 403/404 -> network path may still be OK, test another URL
 ```
 
-## Step 6: Launch Codex
+## Step 7: Open Codex
 
 Run:
 
 ```zsh
-scripts/launch-codex-with-proxy.sh
+scripts/open-codex.sh
 ```
 
-By default it does not quit an existing Codex session. To force a clean restart:
+This opens Codex normally. It does not inject per-app proxy variables.
 
-```zsh
-QUIT_EXISTING=1 scripts/launch-codex-with-proxy.sh
-```
-
-## Step 7: Verify traffic
+## Step 8: Verify traffic
 
 Open the proxy client's connection view.
 
@@ -122,13 +146,9 @@ featuregates.org
 
 If the traffic appears but hits DIRECT, the rule order or group name is wrong.
 
-If no traffic appears, Codex may not have inherited the proxy settings. Re-run with:
+If no traffic appears, confirm Codex is using macOS system proxy and not bypassing it.
 
-```zsh
-USE_ELECTRON_PROXY_ARGS=1 scripts/launch-codex-with-proxy.sh
-```
-
-## Step 8: Create a launcher
+## Step 9: Create a launcher
 
 For a repeatable user-facing launcher, use:
 
@@ -141,6 +161,4 @@ or create an Automator App using:
 ```text
 docs/custom-icon.md
 ```
-
-The shortcut should call the repository script. Do not duplicate the full launch logic.
 

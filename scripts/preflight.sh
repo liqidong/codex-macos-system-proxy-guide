@@ -18,18 +18,21 @@ sw_vers 2>/dev/null || true
 uname -a
 
 print_section "Codex"
-app_executable="${APP_EXECUTABLE:-/Applications/Codex.app/Contents/MacOS/Codex}"
-if [[ -x "$app_executable" ]]; then
-  echo "APP_EXECUTABLE=$app_executable"
+app_name="${APP_NAME:-Codex}"
+app_path="/Applications/$app_name.app"
+if [[ -d "$app_path" ]]; then
+  echo "APP_NAME=$app_name"
+  echo "APP_PATH=$app_path"
 else
-  echo "APP_EXECUTABLE_MISSING=$app_executable"
-  find /Applications "$HOME/Applications" -maxdepth 3 -path '*Codex.app/Contents/MacOS/Codex' -print 2>/dev/null || true
+  echo "APP_MISSING=$app_path"
+  find /Applications "$HOME/Applications" -maxdepth 2 -name '*Codex*.app' -print 2>/dev/null || true
 fi
 
 print_section "Proxy environment"
-echo "HTTP_PROXY_URL=${HTTP_PROXY_URL:-MISSING}"
-echo "HTTPS_PROXY_URL=${HTTPS_PROXY_URL:-MISSING}"
-echo "ALL_PROXY_URL=${ALL_PROXY_URL:-OPTIONAL_EMPTY}"
+echo "NETWORK_SERVICE=${NETWORK_SERVICE:-MISSING}"
+echo "PROXY_HOST=${PROXY_HOST:-MISSING}"
+echo "PROXY_PORT=${PROXY_PORT:-MISSING}"
+echo "ENABLE_SOCKS_PROXY=${ENABLE_SOCKS_PROXY:-0}"
 
 print_section "Listening local ports"
 if command -v lsof >/dev/null 2>&1; then
@@ -44,7 +47,9 @@ if command -v scutil >/dev/null 2>&1; then
   http_enabled="$(scutil --proxy | awk '/HTTPEnable/ {print $3; exit}')"
   https_enabled="$(scutil --proxy | awk '/HTTPSEnable/ {print $3; exit}')"
   if [[ "$http_enabled" == "1" || "$https_enabled" == "1" ]]; then
-    echo "SYSTEM_PROXY_HINT=system proxy is enabled, but this repo still needs HTTP_PROXY_URL in .env for app-specific launch"
+    echo "SYSTEM_PROXY_HINT=system proxy is enabled; this is the preferred path for this guide"
+  else
+    echo "SYSTEM_PROXY_HINT=system proxy is disabled; enable it in your proxy client or run scripts/set-system-proxy.sh after filling .env"
   fi
 else
   echo "scutil not found"
@@ -66,10 +71,11 @@ done
 
 print_section "Next action"
 cat <<'EOF'
-Fill missing values in .env, then run:
+Fill missing values in .env if you want this repo to set system proxy, then run:
 
-  scripts/check-proxy.sh
-  scripts/launch-codex-with-proxy.sh
+  scripts/check-system-proxy.sh
+  scripts/open-codex.sh
 
 If multiple local proxy ports are listed, do not guess. Ask the user which one belongs to their proxy client.
+Keep TUN disabled for this workflow.
 EOF

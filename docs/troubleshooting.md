@@ -1,97 +1,106 @@
-# 排障
+# Troubleshooting
 
-## Codex 打开后还是连不上
+## Codex still cannot connect
 
-先确认本地代理入口能用：
-
-```zsh
-scripts/check-proxy.sh
-```
-
-如果这里失败，问题在本地代理入口，不在 Codex。
-
-## 代理客户端里看不到 Codex 连接
-
-确认你不是从 Dock 或 Finder 启动的原始 Codex App。
-
-你应该通过下面任一方式启动：
-
-```text
-scripts/launch-codex-with-proxy.sh
-macOS 快捷指令
-Automator App
-```
-
-如果还是看不到连接，强制使用 Electron 代理参数：
+Check system proxy first:
 
 ```zsh
-USE_ELECTRON_PROXY_ARGS=1 QUIT_EXISTING=1 scripts/launch-codex-with-proxy.sh
+scripts/check-system-proxy.sh
 ```
 
-## 规则没有命中代理组
+If this fails, fix system proxy before touching Codex.
 
-检查三件事：
+## System proxy is disabled
+
+Use your proxy client UI to enable system proxy, or fill `.env` and run:
+
+```zsh
+scripts/set-system-proxy.sh
+```
+
+Then verify:
+
+```zsh
+scutil --proxy
+```
+
+You want HTTP and HTTPS enabled.
+
+## TUN is still enabled
+
+Turn it off in the proxy client.
+
+Look for settings named:
 
 ```text
-1. YOUR_PROXY_GROUP_NAME 是否是真实存在的代理组
-2. 规则是否放在 GEOIP / MATCH / DIRECT 之前
-3. 修改后是否重载了配置
+TUN
+Enhanced mode
+Virtual adapter
+Transparent proxy
+DNS hijack
+Redirect all traffic
 ```
 
-## auth.openai.com 没有单独规则可以吗？
+This guide is designed to avoid TUN because TUN can make the whole system feel slow or unstable on some Macs.
 
-如果已经有：
+## Rules do not hit the proxy group
+
+Check:
+
+```text
+1. YOUR_PROXY_GROUP_NAME is a real group in the config.
+2. Rules appear before DIRECT / GEOIP / MATCH.
+3. The proxy client is in rule mode.
+4. The config was reloaded after editing.
+```
+
+## auth.openai.com has no separate rule
+
+If this exists:
 
 ```yaml
 - DOMAIN-SUFFIX,openai.com,YOUR_PROXY_GROUP_NAME
 ```
 
-它会覆盖 `auth.openai.com`。
+it already covers `auth.openai.com`.
 
-但为了让读配置的人一眼看懂，也可以保留单独的：
+Keeping the explicit rule is still fine:
 
 ```yaml
 - DOMAIN-SUFFIX,auth.openai.com,YOUR_PROXY_GROUP_NAME
 ```
 
-## 为什么系统代理关闭也能用？
+It makes the config easier to audit.
 
-因为脚本把代理环境变量直接注入给 Codex。
+## Codex opens, but no traffic appears in the proxy client
 
-系统代理是 macOS 的全局入口。脚本注入是只针对这个 App 的入口。
+Check that Codex was opened after system proxy was enabled.
 
-## 为什么系统代理开启后所有应用都走代理？
-
-这是系统代理的设计。
-
-如果你只想让 Codex 走代理，不要开系统代理，直接用脚本启动 Codex。
-
-## 如何确认 Codex 进程拿到了代理变量？
-
-macOS 不总是方便直接查看 GUI 进程的环境变量。更可靠的办法是看代理客户端连接页。
-
-你应该能看到这些域名之一：
-
-```text
-chatgpt.com
-openai.com
-oaistatic.com
-oaiusercontent.com
-statsig.com
-featuregates.org
-```
-
-也可以看日志：
+Then run:
 
 ```zsh
-tail -n 100 "$HOME/Library/Logs/codex-proxy-launcher/codex-via-proxy.log"
+scripts/open-codex.sh
 ```
 
-## 预检脚本发现多个端口怎么办？
+If no traffic appears, the app may be using an existing session. Quit Codex fully, then open it again.
 
-不要猜。
+## System proxy affects other apps
 
-打开你的代理客户端设置页，找到 HTTP、mixed 或 SOCKS 本地监听地址，再写进 `.env`。
+That is expected.
 
-如果你是 AI agent，停下来问用户。
+System proxy is a macOS-level setting. Apps that respect system proxy may enter the proxy client.
+
+This is still lighter than TUN because it does not install a virtual network path for all traffic.
+
+## How to roll back
+
+Turn off system proxy in the proxy client UI, or run:
+
+```zsh
+networksetup -setwebproxystate "Wi-Fi" off
+networksetup -setsecurewebproxystate "Wi-Fi" off
+networksetup -setsocksfirewallproxystate "Wi-Fi" off
+```
+
+Replace `Wi-Fi` with your actual network service.
 

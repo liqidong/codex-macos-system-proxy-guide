@@ -2,29 +2,31 @@
 
 This repository is meant to be operated by humans and AI agents.
 
-Your job is to adapt the templates to the current user's machine without guessing local values.
+Goal: make Codex work through macOS system proxy, with rule-based routing, without TUN mode.
 
 ## Non-negotiable rules
 
 - Do not hardcode a proxy client name.
 - Do not hardcode a local proxy port.
 - Do not hardcode a proxy group name.
+- Do not use TUN mode for this workflow.
+- Do not enable DNS hijack or virtual network adapter mode unless the user explicitly asks.
 - Do not edit remote subscription files directly.
-- Do not delete user configuration files.
+- Do not edit generated runtime configs as the permanent solution.
 - Always create a backup before editing any existing proxy configuration.
-- If you cannot discover a required value, stop and ask the user for that value.
+- If you cannot discover a required value, stop and ask the user.
 
 ## Required values
 
 Before changing anything, identify:
 
 ```text
-HTTP_PROXY_URL         Local HTTP or mixed proxy URL.
-HTTPS_PROXY_URL        Usually the same as HTTP_PROXY_URL.
-ALL_PROXY_URL          Optional SOCKS URL.
-APP_EXECUTABLE         Codex executable path.
-YOUR_PROXY_GROUP_NAME  Real proxy group name in the user's proxy config.
-RULES_TARGET_FILE      Rule enhancement / override file to edit.
+PROXY_HOST              Local system proxy host.
+PROXY_PORT              Local system proxy port from the user's client.
+NETWORK_SERVICE         macOS network service, usually Wi-Fi.
+YOUR_PROXY_GROUP_NAME   Real proxy group name in the user's proxy config.
+RULES_TARGET_FILE       Rule enhancement / override file to edit.
+APP_NAME                Codex app name, usually Codex.
 ```
 
 Never invent these values.
@@ -34,12 +36,15 @@ Never invent these values.
 1. Run `scripts/preflight.sh`.
 2. Read the output and identify missing values.
 3. If required values are missing, ask the user. Do not guess.
-4. Back up `RULES_TARGET_FILE` before editing it.
-5. Add rules from `examples/clash-compatible-rules.yaml`, replacing `YOUR_PROXY_GROUP_NAME`.
-6. Ask the user to reload their proxy client, or use their client-specific reload command only if already known.
-7. Run `scripts/check-proxy.sh`.
-8. Start Codex through `scripts/launch-codex-with-proxy.sh`.
-9. Verify traffic in the proxy client's connection view or logs.
+4. Confirm the proxy client is in rule mode.
+5. Confirm TUN mode is disabled.
+6. Back up `RULES_TARGET_FILE` before editing it.
+7. Add rules from `examples/clash-compatible-rules.yaml`, replacing `YOUR_PROXY_GROUP_NAME`.
+8. Ask the user to reload their proxy client, or use a known client-specific reload command only if already verified.
+9. Enable macOS system proxy through the proxy client UI, or run `scripts/set-system-proxy.sh` after `.env` is filled.
+10. Run `scripts/check-system-proxy.sh`.
+11. Run `scripts/open-codex.sh`.
+12. Verify traffic in the proxy client's connection view or logs.
 
 ## What to edit
 
@@ -55,8 +60,8 @@ Do not edit:
 
 ```text
 Remote subscription profile
-Generated runtime config
-System network proxy settings, unless the user explicitly asks for system-wide proxy
+Generated runtime config as permanent config
+System network proxy settings, unless the user explicitly wants this repo to set system proxy
 ```
 
 ## Stop conditions
@@ -67,15 +72,18 @@ Stop and ask the user when:
 - The proxy group name is unclear.
 - The proxy client has no rule enhancement or override file.
 - Editing the only visible config would modify a remote subscription file directly.
-- Codex is already running and `QUIT_EXISTING=1` would interrupt the user's current work.
+- TUN mode appears to be required by the user's proxy client.
+- Enabling system proxy would affect other apps and the user has not agreed to that.
 
 ## Success criteria
 
 The job is complete when:
 
+- TUN mode is off.
+- The proxy client is in rule mode.
+- macOS system proxy is enabled.
 - Required rules are added to a non-subscription override location.
-- The proxy config is reloaded or the user is told exactly how to reload it.
-- `scripts/check-proxy.sh` succeeds with the user's `HTTP_PROXY_URL`.
-- Codex is launched through `scripts/launch-codex-with-proxy.sh`.
+- `scripts/check-system-proxy.sh` succeeds.
+- Codex opens normally through `scripts/open-codex.sh`.
 - The proxy client shows OpenAI / ChatGPT related traffic hitting the selected proxy group.
 
