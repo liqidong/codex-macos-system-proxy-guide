@@ -1,378 +1,137 @@
-# Codex macOS System Proxy Guide
+# macOS AI App System Proxy Guide
 
-Use Codex on macOS through the system proxy, with rule-based routing and TUN disabled.
+把 VPN / 代理客户端的经验整理成一套可复用的方法：在 macOS 上用系统代理让 Codex、Claude 等 AI 应用稳定联网，同时保留规则分流，不依赖 TUN 模式。
 
-中文目标：
+这不是“复制某个端口就能用”的教程。每个人的代理客户端、订阅、代理组、端口和网络服务都不同。本仓库教你如何发现自己的值、如何安全改规则、如何验证链路。
 
-- 使用 macOS 系统代理完成 Codex 联网。
-- 代理客户端使用规则模式。
-- OpenAI / ChatGPT / Codex 相关域名走指定代理组。
-- 不使用 TUN 模式。
-- 避免 TUN / 虚拟网卡 / DNS 劫持带来的系统卡顿、发热、网络不稳定。
-- 不绑定任何具体代理客户端、订阅、节点、端口。
+## 适合谁
 
-如果你是 AI agent，先读：
+- 你已经有一个本地代理客户端，例如 Clash Verge 或兼容 Clash / Mihomo 配置的客户端。
+- 你希望 Codex、Claude、ChatGPT、OpenAI、Anthropic 相关流量走指定代理组。
+- 你不想依赖 TUN、虚拟网卡、DNS 劫持来解决 AI 应用联网。
+- 你想把配置过程变成可检查、可回滚、可教给别人的流程。
 
-[AGENTS.md](AGENTS.md)
-
-然后按这个执行手册走：
-
-[docs/agent-runbook.md](docs/agent-runbook.md)
-
-## Why This Exists
-
-Some users only need Codex, ChatGPT, and OpenAI traffic to route correctly.
-
-TUN mode can work, but it is heavier. It installs a virtual network path, may hijack DNS, and can affect the whole system. On some Macs this causes lag, high CPU, broken local network behavior, or browser weirdness.
-
-This guide uses the simpler path:
+## 核心思路
 
 ```text
-Codex App
+AI App
   -> macOS system proxy
   -> local proxy client
   -> rule mode
-  -> OpenAI / ChatGPT domains use the selected proxy group
+  -> selected proxy group
+  -> AI service domains
 ```
 
-The proxy client still does the routing. macOS system proxy only decides how supported apps enter the proxy client.
+代理客户端仍然负责“哪些域名走哪个代理组”。macOS 系统代理只负责让支持系统代理的 App 进入本地代理客户端。
 
-## Recommended State
-
-Use this as the target state:
+本仓库默认不走这条路：
 
 ```text
-Proxy client: running
-Mode: rule / rules / rule-based
-System proxy: enabled
-TUN mode: disabled
-Codex: launched normally, or via the shortcut in this repo
+AI App
+  -> TUN / virtual network adapter
+  -> DNS hijack / fake IP
+  -> route everything through proxy core
 ```
 
-Do not use this as the default:
+TUN 可以解决一些场景，但它更重，影响面更大。这个仓库的目标是先把轻量路径做对。
 
-```text
-TUN mode: enabled
-DNS hijack: enabled
-Fake-IP required for all traffic
-```
+## 学习路径
 
-Fake-IP or enhanced DNS can be useful for TUN mode. This guide does not depend on it.
+1. 先读 [仓库地图](docs/00-overview.md)，了解整体路径。
+2. 再读 [系统代理心智模型](docs/01-mental-model.md)，弄清 VPN、系统代理、TUN、规则模式的区别。
+3. 读 [从 VPN 经验迁移到 System Proxy](docs/03-from-vpn-to-system-proxy.md)，把经验抽象成可复用流程。
+4. 再读 [发现本机配置值](docs/02-discovery.md)，不要猜端口、代理组和网络服务。
+5. 修改前读 [安全工作流](docs/04-safe-workflow.md)。
+6. 修改规则前读 [规则与覆写文件](docs/05-rules-and-overrides.md)。
+7. 启用系统代理前读 [macOS System Proxy](docs/06-macos-system-proxy.md)。
+8. 如果你用的是 Clash Verge 或类似客户端，读 [Clash Verge 实战](docs/clients/clash-verge.md)。
+9. 配 Codex 时读 [Codex system proxy](docs/apps/codex.md)。
+10. 配 Claude 时读 [Claude system proxy](docs/apps/claude.md)。
+11. 出问题时读 [排障手册](docs/troubleshooting.md)。
 
-## Required Values
+AI agent 接手本仓库时，先读 [AGENTS.md](AGENTS.md)，再按 [agent 执行手册](docs/agent-runbook.md) 操作。
 
-You need to discover these on the user's machine:
+## 快速开始
 
-```text
-YOUR_PROXY_GROUP_NAME   Real proxy group name in the proxy config.
-PROXY_HOST              Local system proxy host, usually 127.0.0.1.
-PROXY_PORT              Local system proxy port from the user's client.
-NETWORK_SERVICE         macOS network service, usually Wi-Fi.
-APP_NAME                Codex app name, usually Codex.
-```
-
-Do not copy values from another machine.
-
-## Quick Start
+先做只读检查：
 
 ```zsh
 scripts/preflight.sh
-cp .env.example .env
-# edit .env
-scripts/check-system-proxy.sh
-scripts/open-codex.sh
 ```
 
-If system proxy is not enabled yet and the user wants this repo to set it:
-
-```zsh
-scripts/set-system-proxy.sh
-scripts/check-system-proxy.sh
-scripts/open-codex.sh
-```
-
-The scripts read `.env` automatically.
-
-## 1. Add Rules Without Breaking Subscription Updates
-
-Do not directly edit a remote subscription file.
-
-Do not directly edit a generated runtime config.
-
-Use the proxy client's rule enhancement, override, mixin, merge, or profile enhancement file.
-
-Rule enhancement example:
-
-[examples/clash-compatible-rules.yaml](examples/clash-compatible-rules.yaml)
-
-Plain rules list example:
-
-[examples/rules-list-only.yaml](examples/rules-list-only.yaml)
-
-Core rules:
-
-```yaml
-prepend:
-  - DOMAIN-SUFFIX,openai.com,YOUR_PROXY_GROUP_NAME
-  - DOMAIN-SUFFIX,chatgpt.com,YOUR_PROXY_GROUP_NAME
-  - DOMAIN-SUFFIX,oaistatic.com,YOUR_PROXY_GROUP_NAME
-  - DOMAIN-SUFFIX,oaiusercontent.com,YOUR_PROXY_GROUP_NAME
-  - DOMAIN-SUFFIX,auth.openai.com,YOUR_PROXY_GROUP_NAME
-  - DOMAIN-SUFFIX,statsig.com,YOUR_PROXY_GROUP_NAME
-  - DOMAIN-SUFFIX,featuregates.org,YOUR_PROXY_GROUP_NAME
-```
-
-The most important rule:
-
-```yaml
-- DOMAIN-SUFFIX,chatgpt.com,YOUR_PROXY_GROUP_NAME
-```
-
-Rule order matters. These rules should appear before broad `DIRECT`, `GEOIP`, or `MATCH` rules.
-
-Back up before editing:
-
-```zsh
-cp "$RULES_TARGET_FILE" "$RULES_TARGET_FILE.bak-$(date +%Y%m%d%H%M%S)"
-```
-
-After editing, reload the proxy client config.
-
-## 2. Disable TUN Mode
-
-In the proxy client, turn off settings named like:
-
-```text
-TUN
-Enhanced mode
-Virtual network adapter
-Transparent proxy
-DNS hijack
-Redirect all traffic
-```
-
-Names vary by client. The goal is simple: do not route the whole system through a virtual network interface.
-
-This solves the common failure mode:
-
-```text
-TUN enabled
-  -> all traffic enters the proxy core
-  -> DNS may be hijacked
-  -> browser, sync, local network, or system services slow down
-```
-
-For Codex, system proxy is usually enough.
-
-## 3. Enable macOS System Proxy
-
-You can enable system proxy from the proxy client UI.
-
-If you want to set it from this repo, fill `.env` first:
+如果你希望本仓库帮你设置 macOS 系统代理，复制并填写本机值：
 
 ```zsh
 cp .env.example .env
 ```
 
-Example shape:
+必须填写真实值：
 
 ```zsh
-NETWORK_SERVICE="Wi-Fi"
-PROXY_HOST="127.0.0.1"
-PROXY_PORT="YOUR_LOCAL_PROXY_PORT"
-ENABLE_SOCKS_PROXY="0"
+NETWORK_SERVICE="你的 macOS 网络服务名"
+PROXY_HOST="你的本地代理监听地址"
+PROXY_PORT="你的本地 HTTP/HTTPS 代理端口"
+APP_NAME="Codex 的 App 名称"
+CLAUDE_APP_NAME="Claude 的 App 名称"
 ```
 
-Then run:
-
-```zsh
-scripts/set-system-proxy.sh
-```
-
-This sets HTTP and HTTPS system proxy for the selected macOS network service.
-
-## 4. Open Codex
-
-Once system proxy is enabled, Codex can be opened normally:
-
-```zsh
-open -a Codex
-```
-
-This repo provides a small wrapper:
-
-```zsh
-scripts/open-codex.sh
-```
-
-It checks that system proxy is enabled, then opens Codex.
-
-No per-app proxy injection is required.
-
-## 5. Create a Shortcut
-
-Open macOS Shortcuts:
-
-```text
-New Shortcut -> Run Shell Script
-```
-
-Shell:
-
-```text
-/bin/zsh
-```
-
-Use:
-
-[examples/shortcut-shell.zsh](examples/shortcut-shell.zsh)
-
-Replace:
-
-```zsh
-REPO_DIR="$HOME/Desktop/codex-macos-system-proxy-guide"
-```
-
-Then name the shortcut:
-
-```text
-Codex System Proxy
-```
-
-You can pin it to the menu bar or add it to the Dock.
-
-## 6. Custom Icon
-
-See:
-
-[docs/custom-icon.md](docs/custom-icon.md)
-
-Recommended app name:
-
-```text
-Codex System Proxy.app
-```
-
-## 7. Verify
-
-Run:
+然后验证：
 
 ```zsh
 scripts/check-system-proxy.sh
 ```
 
-Then open Codex:
+打开 Codex：
 
 ```zsh
 scripts/open-codex.sh
 ```
 
-In the proxy client's connection view, look for:
-
-```text
-chatgpt.com
-openai.com
-oaistatic.com
-oaiusercontent.com
-statsig.com
-featuregates.org
-```
-
-They should hit `YOUR_PROXY_GROUP_NAME`.
-
-## Common Cases
-
-### Case A: System proxy is on, TUN is off
-
-This is the preferred setup.
-
-```text
-System proxy: on
-Rule mode: on
-TUN: off
-Codex: open normally
-```
-
-### Case B: System proxy is on, but rules do not work
-
-Check:
-
-```text
-Proxy group name is real
-Rules are before DIRECT / GEOIP / MATCH
-Proxy client config was reloaded
-Proxy client is in rule mode
-```
-
-### Case C: TUN fixes one app but makes the system lag
-
-Use system proxy for Codex instead.
-
-This keeps the network path smaller:
-
-```text
-Codex -> macOS system proxy -> proxy client -> rule mode
-```
-
-## Publish to GitHub
-
-Before publishing:
+打开 Claude：
 
 ```zsh
-git status --short
-git ls-files .env
+scripts/open-claude.sh
 ```
 
-The second command should print nothing.
-
-With GitHub CLI:
+如果系统代理还没有开启，并且你明确希望这个仓库通过 `networksetup` 修改系统代理：
 
 ```zsh
-gh repo create codex-macos-system-proxy-guide --public --source=. --remote=origin --push
+scripts/set-system-proxy.sh
 ```
 
-Or create an empty GitHub repo first:
+## 规则模板
 
-```zsh
-git remote add origin git@github.com:YOUR_NAME/codex-macos-system-proxy-guide.git
-git branch -M main
-git push -u origin main
-```
+Codex / OpenAI / ChatGPT：
 
-## Suggested GitHub Topics
+- [examples/openai-rules-prepend.yaml](examples/openai-rules-prepend.yaml)
+- [examples/openai-rules-list.yaml](examples/openai-rules-list.yaml)
 
-Use these topics so people can find the repo:
+Claude / Anthropic：
 
-```text
-codex
-openai
-chatgpt
-macos
-system-proxy
-proxy
-clash-compatible
-no-tun
-rule-mode
-```
+- [examples/anthropic-rules-prepend.yaml](examples/anthropic-rules-prepend.yaml)
+- [examples/anthropic-rules-list.yaml](examples/anthropic-rules-list.yaml)
 
-## Repository Structure
+把 `YOUR_PROXY_GROUP_NAME` 替换为你配置里真实存在的代理组名。不要写别人的组名，也不要凭感觉写。
 
-```text
-.
-├── .env.example
-├── AGENTS.md
-├── README.md
-├── docs
-│   ├── agent-runbook.md
-│   ├── custom-icon.md
-│   └── troubleshooting.md
-├── examples
-│   ├── clash-compatible-rules.yaml
-│   ├── rules-list-only.yaml
-│   └── shortcut-shell.zsh
-└── scripts
-    ├── check-system-proxy.sh
-    ├── open-codex.sh
-    ├── preflight.sh
-    └── set-system-proxy.sh
-```
+## 安全边界
+
+- 不硬编码代理客户端名称。
+- 不硬编码本地代理端口。
+- 不硬编码代理组名称。
+- 不把 TUN 当成默认方案。
+- 不开启 DNS 劫持或虚拟网卡，除非你明确要走那条路。
+- 不直接修改远程订阅文件。
+- 不把生成出来的运行时配置当成永久配置。
+- 修改任何已有代理配置前，先备份。
+
+## 完成标准
+
+一次配置完成，不是“App 能打开”就算结束，而是满足这些条件：
+
+- 代理客户端处于规则模式。
+- TUN 关闭。
+- macOS 系统代理开启。
+- AI 服务域名规则进入非订阅的覆写 / 增强 / mixin 文件。
+- `scripts/check-system-proxy.sh` 至少有测试 URL 通过。
+- Codex 或 Claude 能通过本仓库脚本打开。
+- 代理客户端连接视图里能看到相关域名命中目标代理组。

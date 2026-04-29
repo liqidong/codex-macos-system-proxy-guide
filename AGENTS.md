@@ -2,7 +2,7 @@
 
 This repository is meant to be operated by humans and AI agents.
 
-Goal: make Codex work through macOS system proxy, with rule-based routing, without TUN mode.
+Goal: teach humans and AI agents how to make Codex, Claude, and similar AI apps work through macOS system proxy, with rule-based routing, without TUN mode as the default workflow.
 
 ## Non-negotiable rules
 
@@ -23,10 +23,11 @@ Before changing anything, identify:
 ```text
 PROXY_HOST              Local system proxy host.
 PROXY_PORT              Local system proxy port from the user's client.
-NETWORK_SERVICE         macOS network service, usually Wi-Fi.
+NETWORK_SERVICE         Real macOS network service name.
 YOUR_PROXY_GROUP_NAME   Real proxy group name in the user's proxy config.
 RULES_TARGET_FILE       Rule enhancement / override file to edit.
-APP_NAME                Codex app name, usually Codex.
+APP_NAME                Real Codex app name, when configuring Codex.
+CLAUDE_APP_NAME         Real Claude app name, when configuring Claude.
 ```
 
 Never invent these values.
@@ -39,11 +40,11 @@ Never invent these values.
 4. Confirm the proxy client is in rule mode.
 5. Confirm TUN mode is disabled.
 6. Back up `RULES_TARGET_FILE` before editing it.
-7. Add rules from `examples/clash-compatible-rules.yaml`, replacing `YOUR_PROXY_GROUP_NAME`.
+7. Add app-specific rules from `examples/`, replacing `YOUR_PROXY_GROUP_NAME`.
 8. Ask the user to reload their proxy client, or use a known client-specific reload command only if already verified.
 9. Enable macOS system proxy through the proxy client UI, or run `scripts/set-system-proxy.sh` after `.env` is filled.
 10. Run `scripts/check-system-proxy.sh`.
-11. Run `scripts/open-codex.sh`.
+11. Run `scripts/open-codex.sh` or `scripts/open-claude.sh`.
 12. Verify traffic in the proxy client's connection view or logs.
 
 ## What to edit
@@ -84,6 +85,5 @@ The job is complete when:
 - macOS system proxy is enabled.
 - Required rules are added to a non-subscription override location.
 - `scripts/check-system-proxy.sh` succeeds.
-- Codex opens normally through `scripts/open-codex.sh`.
-- The proxy client shows OpenAI / ChatGPT related traffic hitting the selected proxy group.
-
+- Codex or Claude opens normally through the matching script.
+- The proxy client shows OpenAI / ChatGPT / Anthropic related traffic hitting the selected proxy group.

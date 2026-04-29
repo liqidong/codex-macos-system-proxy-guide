@@ -18,14 +18,29 @@ sw_vers 2>/dev/null || true
 uname -a
 
 print_section "Codex"
-app_name="${APP_NAME:-Codex}"
-app_path="/Applications/$app_name.app"
-if [[ -d "$app_path" ]]; then
+app_name="${APP_NAME:-}"
+if [[ -n "$app_name" && -d "/Applications/$app_name.app" ]]; then
   echo "APP_NAME=$app_name"
-  echo "APP_PATH=$app_path"
+  echo "APP_PATH=/Applications/$app_name.app"
+elif [[ -n "$app_name" && -d "$HOME/Applications/$app_name.app" ]]; then
+  echo "APP_NAME=$app_name"
+  echo "APP_PATH=$HOME/Applications/$app_name.app"
 else
-  echo "APP_MISSING=$app_path"
+  echo "APP_NAME=${APP_NAME:-MISSING}"
   find /Applications "$HOME/Applications" -maxdepth 2 -name '*Codex*.app' -print 2>/dev/null || true
+fi
+
+print_section "Claude"
+claude_app_name="${CLAUDE_APP_NAME:-}"
+if [[ -n "$claude_app_name" && -d "/Applications/$claude_app_name.app" ]]; then
+  echo "CLAUDE_APP_NAME=$claude_app_name"
+  echo "CLAUDE_APP_PATH=/Applications/$claude_app_name.app"
+elif [[ -n "$claude_app_name" && -d "$HOME/Applications/$claude_app_name.app" ]]; then
+  echo "CLAUDE_APP_NAME=$claude_app_name"
+  echo "CLAUDE_APP_PATH=$HOME/Applications/$claude_app_name.app"
+else
+  echo "CLAUDE_APP_NAME=${CLAUDE_APP_NAME:-MISSING}"
+  find /Applications "$HOME/Applications" -maxdepth 2 -name '*Claude*.app' -print 2>/dev/null || true
 fi
 
 print_section "Proxy environment"

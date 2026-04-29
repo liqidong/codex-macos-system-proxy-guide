@@ -9,21 +9,22 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-NETWORK_SERVICE="${NETWORK_SERVICE:-Wi-Fi}"
+NETWORK_SERVICE="${NETWORK_SERVICE:-}"
 PROXY_HOST="${PROXY_HOST:-}"
 PROXY_PORT="${PROXY_PORT:-}"
 ENABLE_SOCKS_PROXY="${ENABLE_SOCKS_PROXY:-0}"
+DISABLE_SOCKS_PROXY="${DISABLE_SOCKS_PROXY:-0}"
 SOCKS_PROXY_HOST="${SOCKS_PROXY_HOST:-$PROXY_HOST}"
 SOCKS_PROXY_PORT="${SOCKS_PROXY_PORT:-$PROXY_PORT}"
 
-if [[ -z "$PROXY_HOST" || -z "$PROXY_PORT" ]]; then
+if [[ -z "$NETWORK_SERVICE" || -z "$PROXY_HOST" || -z "$PROXY_PORT" ]]; then
   cat >&2 <<'EOF'
-Missing PROXY_HOST or PROXY_PORT.
+Missing NETWORK_SERVICE, PROXY_HOST, or PROXY_PORT.
 
 Create .env from .env.example and fill:
-  NETWORK_SERVICE="Wi-Fi"
-  PROXY_HOST="127.0.0.1"
-  PROXY_PORT="YOUR_LOCAL_PROXY_PORT"
+  NETWORK_SERVICE="YOUR_MACOS_NETWORK_SERVICE"
+  PROXY_HOST="YOUR_LOCAL_PROXY_HOST"
+  PROXY_PORT="YOUR_LOCAL_HTTP_PROXY_PORT"
 EOF
   exit 2
 fi
@@ -41,10 +42,16 @@ networksetup -setwebproxystate "$NETWORK_SERVICE" on
 networksetup -setsecurewebproxystate "$NETWORK_SERVICE" on
 
 if [[ "$ENABLE_SOCKS_PROXY" == "1" ]]; then
+  if [[ -z "$SOCKS_PROXY_HOST" || -z "$SOCKS_PROXY_PORT" ]]; then
+    echo "ENABLE_SOCKS_PROXY=1 but SOCKS_PROXY_HOST or SOCKS_PROXY_PORT is missing." >&2
+    exit 4
+  fi
   networksetup -setsocksfirewallproxy "$NETWORK_SERVICE" "$SOCKS_PROXY_HOST" "$SOCKS_PROXY_PORT"
   networksetup -setsocksfirewallproxystate "$NETWORK_SERVICE" on
-else
+elif [[ "$DISABLE_SOCKS_PROXY" == "1" ]]; then
   networksetup -setsocksfirewallproxystate "$NETWORK_SERVICE" off
+else
+  echo "Leaving SOCKS system proxy state unchanged."
 fi
 
 echo "System proxy enabled for $NETWORK_SERVICE -> $PROXY_HOST:$PROXY_PORT"

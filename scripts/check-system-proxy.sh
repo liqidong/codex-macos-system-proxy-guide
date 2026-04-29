@@ -12,7 +12,8 @@ fi
 PROXY_HOST="${PROXY_HOST:-}"
 PROXY_PORT="${PROXY_PORT:-}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-10}"
-TEST_URLS=(${=TEST_URLS:-https://chatgpt.com/ https://openai.com/ https://github.com/})
+TEST_URLS=(${=TEST_URLS:-https://chatgpt.com/ https://openai.com/})
+ALLOW_PARTIAL_PROXY_CHECK="${ALLOW_PARTIAL_PROXY_CHECK:-0}"
 
 proxy_dump="$(scutil --proxy)"
 
@@ -75,5 +76,10 @@ rm -f /tmp/codex-system-proxy-check.err
 echo "Result: $passed passed, $failed failed"
 
 if [[ "$passed" -eq 0 ]]; then
+  exit 1
+fi
+
+if [[ "$failed" -gt 0 && "$ALLOW_PARTIAL_PROXY_CHECK" != "1" ]]; then
+  echo "Some proxy checks failed. Set ALLOW_PARTIAL_PROXY_CHECK=1 only if you intentionally accept partial success." >&2
   exit 1
 fi

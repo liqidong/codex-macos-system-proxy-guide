@@ -1,164 +1,149 @@
-# Agent Runbook
+# Agent 执行手册
 
-This runbook is for another model taking over the task.
+这是给 AI agent 接手本仓库时使用的操作手册。先遵守 [AGENTS.md](../AGENTS.md)，再按本页执行。
 
-The desired setup is:
+## 目标状态
 
 ```text
-macOS system proxy: on
-proxy client rule mode: on
-TUN mode: off
-Codex: opened normally
+macOS system proxy: enabled
+proxy client mode: rule
+TUN: disabled
+rules: AI service domains -> real proxy group
+apps: opened normally through macOS system proxy
 ```
 
-Do not use per-app proxy injection as the default path.
+不要把 per-app 代理注入、TUN、DNS hijack 当成默认方案。
 
-## Step 1: Discover local state
+## 1. 只读检查
 
-Run:
+运行：
 
 ```zsh
 scripts/preflight.sh
 ```
 
-Read the output. You are looking for:
+读取输出，识别：
 
 ```text
-Codex app name
-macOS network service
-current system proxy state
-listening local ports
-candidate proxy config files
+PROXY_HOST
+PROXY_PORT
+NETWORK_SERVICE
+YOUR_PROXY_GROUP_NAME
+RULES_TARGET_FILE
+APP_NAME
+CLAUDE_APP_NAME
 ```
 
-If the script finds more than one plausible proxy port, do not choose randomly. Ask the user which one their proxy client uses.
+如果缺任何一个配置所必需的值，停止并问用户。不要猜。
 
-## Step 2: Fill `.env`
+## 2. 判断是否可以修改
 
-Create `.env` from `.env.example` if this repo needs to set system proxy.
+只有这些位置适合修改：
 
-Example shape:
+```text
+.env
+RULES_TARGET_FILE, after backup
+user-created Shortcut / Automator wrapper
+```
+
+不要修改：
+
+```text
+remote subscription profile
+generated runtime config as permanent config
+system network proxy settings, unless user explicitly agrees
+```
+
+## 3. 确认代理客户端状态
+
+需要用户或可验证证据确认：
+
+- 客户端处于规则模式。
+- TUN 关闭。
+- DNS hijack / virtual network adapter 没有作为本流程依赖。
+- 有用户可编辑的规则覆写、增强、mixin 或 merge 文件。
+
+如果只有订阅文件可改，停止并问用户。
+
+## 4. 填写 `.env`
+
+如果需要仓库脚本设置或检查系统代理：
 
 ```zsh
-NETWORK_SERVICE="Wi-Fi"
-PROXY_HOST="127.0.0.1"
-PROXY_PORT="YOUR_LOCAL_PROXY_PORT"
-ENABLE_SOCKS_PROXY="0"
-APP_NAME="Codex"
+cp .env.example .env
 ```
 
-Do not commit `.env`.
+填写真实值。不要提交 `.env`。
 
-## Step 3: Disable TUN
+## 5. 备份并添加规则
 
-In the proxy client UI, disable settings named like:
-
-```text
-TUN
-Enhanced mode
-Virtual network adapter
-Transparent proxy
-DNS hijack
-Redirect all traffic
-```
-
-The purpose is to avoid routing the whole system through a virtual network interface.
-
-## Step 4: Add rules safely
-
-Find the user's rule enhancement, mixin, merge, override, or profile enhancement file.
-
-Before editing:
+编辑规则目标文件前：
 
 ```zsh
 cp "$RULES_TARGET_FILE" "$RULES_TARGET_FILE.bak-$(date +%Y%m%d%H%M%S)"
 ```
 
-Then add the rules from:
+Codex / OpenAI 规则：
 
 ```text
-examples/clash-compatible-rules.yaml
+examples/openai-rules-prepend.yaml
 ```
 
-Replace:
+Claude / Anthropic 规则：
 
 ```text
-YOUR_PROXY_GROUP_NAME
+examples/anthropic-rules-prepend.yaml
 ```
 
-with the real group name from the user's config.
+把 `YOUR_PROXY_GROUP_NAME` 替换为真实代理组名。规则应该出现在宽泛的 `DIRECT` / `GEOIP` / `MATCH` 之前。
 
-Do not edit generated runtime config as the permanent solution.
+## 6. 重新加载客户端配置
 
-## Step 5: Enable system proxy
+优先让用户通过代理客户端 UI reload / apply。
 
-Preferred path: ask the user to enable system proxy in their proxy client UI.
+只有已经确认客户端命令和当前客户端匹配时，才能使用命令行 reload。
 
-Script path:
+## 7. 启用 macOS 系统代理
+
+优先让用户在代理客户端 UI 里启用 system proxy。
+
+如果用户明确同意由仓库脚本修改系统网络代理，并且 `.env` 已填写：
 
 ```zsh
 scripts/set-system-proxy.sh
 ```
 
-Only run the script after `.env` is filled.
+这会影响所有尊重 macOS 系统代理的 App。
 
-## Step 6: Test system proxy
+脚本默认不关闭已有 SOCKS 系统代理。只有用户明确要求时，才设置 `DISABLE_SOCKS_PROXY=1`。
 
-Run:
+## 8. 验证
 
 ```zsh
 scripts/check-system-proxy.sh
 ```
 
-If it fails:
-
-```text
-HTTPEnable/HTTPSEnable not 1 -> system proxy is not enabled
-Connection refused -> local proxy is not listening or wrong port
-Timeout -> proxy reachable but upstream route may be bad
-HTTP 403/404 -> network path may still be OK, test another URL
-```
-
-## Step 7: Open Codex
-
-Run:
+如果要打开 Codex：
 
 ```zsh
 scripts/open-codex.sh
 ```
 
-This opens Codex normally. It does not inject per-app proxy variables.
+如果要打开 Claude：
 
-## Step 8: Verify traffic
-
-Open the proxy client's connection view.
-
-Look for:
-
-```text
-chatgpt.com
-openai.com
-oaistatic.com
-oaiusercontent.com
-statsig.com
-featuregates.org
+```zsh
+scripts/open-claude.sh
 ```
 
-If the traffic appears but hits DIRECT, the rule order or group name is wrong.
+最后在代理客户端连接视图里确认相关域名命中目标代理组。
 
-If no traffic appears, confirm Codex is using macOS system proxy and not bypassing it.
+## 停止条件
 
-## Step 9: Create a launcher
+遇到这些情况，停止并问用户：
 
-For a repeatable user-facing launcher, use:
-
-```text
-examples/shortcut-shell.zsh
-```
-
-or create an Automator App using:
-
-```text
-docs/custom-icon.md
-```
-
+- 多个可能的本地代理端口。
+- 代理组名不明确。
+- 找不到非订阅的规则覆写位置。
+- 只能编辑远程订阅文件。
+- 客户端必须开启 TUN 才能工作。
+- 启用系统代理会影响其他 App，但用户尚未同意。

@@ -1,0 +1,15 @@
+# Put these rules in your client's rule enhancement / mixin / override file.
+# Do not edit the remote subscription file directly.
+#
+# Replace YOUR_PROXY_GROUP_NAME with a real proxy group from your config.
+
+prepend:
+  - DOMAIN-SUFFIX,claude.ai,YOUR_PROXY_GROUP_NAME
+  - DOMAIN-SUFFIX,claude.com,YOUR_PROXY_GROUP_NAME
+  - DOMAIN-SUFFIX,anthropic.com,YOUR_PROXY_GROUP_NAME
+  - DOMAIN-SUFFIX,claudeusercontent.com,YOUR_PROXY_GROUP_NAME
+  - DOMAIN-SUFFIX,clau.de,YOUR_PROXY_GROUP_NAME
+
+append: []
+
+delete: []
