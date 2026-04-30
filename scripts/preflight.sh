@@ -51,9 +51,31 @@ echo "ENABLE_SOCKS_PROXY=${ENABLE_SOCKS_PROXY:-0}"
 
 print_section "Listening local ports"
 if command -v lsof >/dev/null 2>&1; then
-  lsof -nP -iTCP@127.0.0.1 -sTCP:LISTEN 2>/dev/null | sed -n '1,80p'
+  lsof -nP -iTCP@127.0.0.1 -sTCP:LISTEN 2>/dev/null | sed -n '1,80p' || true
 else
   echo "lsof not found"
+fi
+
+if [[ -n "${PROXY_HOST:-}" && -n "${PROXY_PORT:-}" ]]; then
+  print_section "Configured proxy endpoint"
+  echo "ENDPOINT=$PROXY_HOST:$PROXY_PORT"
+
+  if command -v nc >/dev/null 2>&1; then
+    if nc -z -G 2 "$PROXY_HOST" "$PROXY_PORT" >/dev/null 2>&1; then
+      echo "ENDPOINT_REACHABLE=1"
+    else
+      echo "ENDPOINT_REACHABLE=0"
+    fi
+  else
+    echo "nc not found; skipping endpoint reachability check"
+  fi
+
+  if command -v netstat >/dev/null 2>&1; then
+    netstat -anv -p tcp 2>/dev/null | awk -v endpoint="$PROXY_HOST.$PROXY_PORT" '
+      index($0, endpoint) && $0 ~ /LISTEN/ { print; found=1 }
+      END { if (!found) print "ENDPOINT_LISTENER_NOT_VISIBLE=1" }
+    ' || true
+  fi
 fi
 
 print_section "macOS system proxy"
@@ -81,7 +103,7 @@ for root in "${candidate_roots[@]}"; do
   [[ -d "$root" ]] || continue
   find "$root" -maxdepth 4 \
     \( -iname '*clash*' -o -iname '*mihomo*' -o -iname '*verge*' -o -iname '*proxy*' \) \
-    -print 2>/dev/null | sed -n '1,80p'
+    -print 2>/dev/null | sed -n '1,80p' || true
 done
 
 print_section "Next action"
